@@ -27,15 +27,14 @@ type LidSettings struct {
 
 // ServiceDef defines a service configuration
 type ServiceDef struct {
-	Command    string            `yaml:"command"`
-	WorkingDir string            `yaml:"working_dir"`
-	DependsOn  []string          `yaml:"depends_on"`
-	Env        map[string]string `yaml:"env"`
-	EnvFile    string            `yaml:"env_file"`
-	PreStart   string            `yaml:"pre_start"`
-	Restart    string            `yaml:"restart"`
-	User       string            `yaml:"user"`
-	Group      string            `yaml:"group"`
+	Command   string            `yaml:"command"`
+	DependsOn []string          `yaml:"depends_on"`
+	Env       map[string]string `yaml:"env"`
+	EnvFile   string            `yaml:"env_file"`
+	PreStart  string            `yaml:"pre_start"`
+	Restart   string            `yaml:"restart"`
+	User      string            `yaml:"user"`
+	Group     string            `yaml:"group"`
 }
 
 // DeploymentState tracks the current and previous deployments
@@ -586,17 +585,18 @@ func generateServiceFile(name string, service ServiceDef, commitHash string, dep
 	sb.WriteString(fmt.Sprintf("ExecStart=%s\n", service.Command))
 
 	// Working directory
-	if service.WorkingDir != "" {
-		workingDir := service.WorkingDir
-		if !filepath.IsAbs(workingDir) {
-			// If relative path, make it relative to the deployment directory
-			workingDir = filepath.Join(deploymentsDir, commitHash, name, workingDir)
+
+	workingDir := filepath.Join(deploymentsDir, commitHash, name)
+	if !filepath.IsAbs(workingDir) {
+		// Get current working directory as base
+		cwd, err := os.Getwd()
+		if err != nil {
+			// Fallback if we can't get current directory
+			cwd = "/"
 		}
-		sb.WriteString(fmt.Sprintf("WorkingDirectory=%s\n", workingDir))
-	} else {
-		// Default to service directory in deployment
-		sb.WriteString(fmt.Sprintf("WorkingDirectory=%s\n", filepath.Join(deploymentsDir, commitHash, name)))
+		workingDir = filepath.Join(cwd, workingDir)
 	}
+	sb.WriteString(fmt.Sprintf("WorkingDirectory=%s\n", workingDir))
 
 	// Environment variables
 	if service.Env != nil && len(service.Env) > 0 {
