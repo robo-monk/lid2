@@ -1,0 +1,11 @@
+settings:
+  deployments_dir: ./deployments
+
+services:
+  api-server:
+    command: bun run server.ts
+    # depends_on:
+    # - database
+    #env:
+    #NODE_ENV: production
+    #env_file: .env.production
