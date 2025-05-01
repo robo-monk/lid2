@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,10 +165,15 @@ func statusCommand() {
 	fmt.Printf("%-20s %-10s %-15s %-15s\n", "SERVICE", "STATUS", "SINCE", "MEMORY")
 	fmt.Println("-------------------------------------------------------------------------------")
 
+	args := make([]string, len(config.Services)+1)
+	args = append(args, "status")
 	for name := range config.Services {
+		args = append(args, name)
 		status, since, memory := getServiceStatus(name)
 		fmt.Printf("%-20s %-10s %-15s %-15s\n", name, status, since, memory)
 	}
+
+	exec.Command("systemctl", args...)
 }
 
 // deployCommand deploys services from the specified commit
@@ -248,7 +252,10 @@ func deployCommand(commitHash string) {
 		}
 
 		// Start service
-		if err := exec.Command("sudo", "systemctl", "start", serviceName).Run(); err != nil {
+		cmd := exec.Command("sudo", "systemctl", "start", serviceName)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
 			fmt.Printf("Error starting service: %v\n", err)
 			os.Exit(1)
 		}
@@ -309,7 +316,7 @@ func loadConfig() (*LidConfig, error) {
 		return nil, fmt.Errorf("Lidfile not found. Create a Lidfile.yaml in your project root")
 	}
 
-	data, err := ioutil.ReadFile(configFile)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read %s: %v", configFile, err)
 	}
@@ -342,7 +349,7 @@ func loadState(stateFile string) (*DeploymentState, error) {
 	}
 
 	// Read file
-	data, err := ioutil.ReadFile(stateFile)
+	data, err := os.ReadFile(stateFile)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read state file: %v", err)
 	}
@@ -369,7 +376,7 @@ func saveState(stateFile string, state *DeploymentState) error {
 	}
 
 	// Write file
-	if err := ioutil.WriteFile(stateFile, data, 0644); err != nil {
+	if err := os.WriteFile(stateFile, data, 0644); err != nil {
 		return fmt.Errorf("Could not write state file: %v", err)
 	}
 
@@ -574,16 +581,6 @@ func generateServiceFile(name string, service ServiceDef, commitHash string, dep
 	// [Service] section
 	sb.WriteString("[Service]\n")
 
-	// Pre-start script
-	if service.PreStart != "" {
-		serviceDir := filepath.Join(deploymentsDir, commitHash, name)
-		preStartPath := filepath.Join(serviceDir, service.PreStart)
-		sb.WriteString(fmt.Sprintf("ExecStartPre=%s\n", preStartPath))
-	}
-
-	// Main command
-	sb.WriteString(fmt.Sprintf("ExecStart=%s\n", service.Command))
-
 	// Working directory
 
 	workingDir := filepath.Join(deploymentsDir, commitHash, name)
@@ -597,6 +594,15 @@ func generateServiceFile(name string, service ServiceDef, commitHash string, dep
 		workingDir = filepath.Join(cwd, workingDir)
 	}
 	sb.WriteString(fmt.Sprintf("WorkingDirectory=%s\n", workingDir))
+
+	// Pre-start script
+	if service.PreStart != "" {
+		preStartPath := filepath.Join(workingDir, service.PreStart)
+		sb.WriteString(fmt.Sprintf("ExecStartPre=%s\n", preStartPath))
+	}
+
+	// Main command
+	sb.WriteString(fmt.Sprintf("ExecStart=%s\n", filepath.Join(workingDir, service.Command)))
 
 	// Environment variables
 	if service.Env != nil && len(service.Env) > 0 {
