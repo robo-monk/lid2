@@ -173,7 +173,10 @@ func statusCommand() {
 		fmt.Printf("%-20s %-10s %-15s %-15s\n", name, status, since, memory)
 	}
 
-	exec.Command("systemctl", args...)
+	cmd := exec.Command("systemctl", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run()
 }
 
 // deployCommand deploys services from the specified commit
