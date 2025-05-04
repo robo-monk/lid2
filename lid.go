@@ -164,13 +164,15 @@ func statusCommand(config *LidConfig, state *DeploymentState) {
 		fmt.Printf("Current deployment: %s\n", currentDeployment)
 	}
 
-	// services = make([]string, len(config.Services))
-	services := ""
+	services := make([]string, len(config.Services)+1)
+	services = append(services, "status")
+	// services := ""
 	fmt.Println("Service Status:")
 	for name := range config.Services {
-		services += " " + name
+		// services += " " + name
+		services = append(services, name)
 	}
-	cmd := exec.Command("systemctl", "status", services)
+	cmd := exec.Command("systemctl", services...)
 
 	// fmt.Println("-------------------------------------------------------------------------------")
 	// fmt.Printf("%-20s %-10s %-15s %-15s\n", "SERVICE", "STATUS", "SINCE", "MEMORY")
