@@ -55,7 +55,18 @@ func main() {
 	case "check":
 		checkCommand()
 	case "status":
-		statusCommand()
+		config, err := loadConfig()
+		if err != nil {
+			print("Could not load config: %v", err)
+			os.Exit(1)
+		}
+		state, err := loadState(config.Settings.StateFile)
+		if err != nil {
+			print("Could not load state: %v", err)
+			os.Exit(1)
+		}
+
+		statusCommand(config, state)
 	case "deploy":
 		if len(os.Args) < 3 {
 			fmt.Println("Error: Missing commit hash")
@@ -143,41 +154,63 @@ func checkCommand() {
 }
 
 // statusCommand displays the current status of all services
-func statusCommand() {
-	config, err := loadConfig()
-	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Get current deployment if available
-	state, _ := loadState(config.Settings.StateFile)
+func statusCommand(config *LidConfig, state *DeploymentState) {
 	var currentDeployment string
 	if state != nil {
 		currentDeployment = state.CurrentCommit
 	}
 
-	fmt.Println("Service Status:")
 	if currentDeployment != "" {
 		fmt.Printf("Current deployment: %s\n", currentDeployment)
 	}
-	fmt.Println("-------------------------------------------------------------------------------")
-	fmt.Printf("%-20s %-10s %-15s %-15s\n", "SERVICE", "STATUS", "SINCE", "MEMORY")
-	fmt.Println("-------------------------------------------------------------------------------")
 
-	args := make([]string, len(config.Services)+1)
-	args = append(args, "status")
+	// services = make([]string, len(config.Services))
+	services := ""
+	fmt.Println("Service Status:")
 	for name := range config.Services {
-		args = append(args, name)
-		status, since, memory := getServiceStatus(name)
-		fmt.Printf("%-20s %-10s %-15s %-15s\n", name, status, since, memory)
+		services += " " + name
 	}
+	cmd := exec.Command("systemctl", "status", services)
 
-	cmd := exec.Command("systemctl", args...)
+	// fmt.Println("-------------------------------------------------------------------------------")
+	// fmt.Printf("%-20s %-10s %-15s %-15s\n", "SERVICE", "STATUS", "SINCE", "MEMORY")
+	// fmt.Println("-------------------------------------------------------------------------------")
+
+	// args := make([]string, len(config.Services)+1)
+	// args = append(args, "status")
+	// for name := range config.Services {
+	// 	args = append(args, name)
+	// 	status, since, memory := getServiceStatus(name)
+	// 	fmt.Printf("%-20s %-10s %-15s %-15s\n", name, status, since, memory)
+	// }
+
+	// cmd := exec.Command("systemctl", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Run()
 }
+
+// func compileToSystemdServices(config *LidConfig, deployDir string, commitHash string) ([]string, error) {
+// 	// Get services in dependency order
+// 	orderedServices, err := getSortedServices(config)
+// 	if err != nil {
+// 		fmt.Printf("Error: %v\n", err)
+// 		os.Exit(1)
+// 	}
+
+// 	for _, serviceName := range orderedServices {
+// 		service, ok := config.Services[serviceName]
+// 		if !ok {
+// 			continue // Skip if service was removed from config
+// 		}
+
+// 		fmt.Printf("Compiling %s...\n", serviceName)
+
+// 		// Create systemd service file
+// 		systemdPath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+// 		serviceFile := generateServiceFile(serviceName, service, commitHash, config.Settings.DeploymentsDir)
+// 	}
+// }
 
 // deployCommand deploys services from the specified commit
 func deployCommand(commitHash string) {
